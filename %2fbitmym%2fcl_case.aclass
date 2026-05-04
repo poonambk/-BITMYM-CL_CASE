@@ -1523,6 +1523,9 @@ protected section.
   methods CHECK_BEFORE_SAVE_ITEMS
     returning
       value(RD_RETURN) type ABAP_BOOL .
+  methods CHECK_OVERLAPP
+    returning
+      value(RD_RETURN) type ABAP_BOOL .
   methods CHECK_CLINICAL_SUPPORT_CHANGE
     returning
       value(RD_RETURN) type ABAP_BOOL .
@@ -20129,6 +20132,9 @@ ENHANCEMENT-POINT CLONE_BOOKING SPOTS /BITMYM/CL_CASE .
     rd_return = check_before_save_dates( ).
     CHECK rd_return EQ abap_true.
 
+    rd_return = check_overlapp( ).
+    CHECK rd_return EQ abap_true.
+
 
     rd_return = check_before_save_booking( ).
     CHECK rd_return EQ abap_true.
@@ -21046,6 +21052,51 @@ ENHANCEMENT-POINT INTF_POST_PROCESSING_INT00 SPOTS /BITMYM/CL_CASE .
 *____SR2-2015____END   INSERT___*
 
 ENHANCEMENT-POINT CUSTOM_VALIDATIONS_RESERVATION SPOTS /BITMYM/CL_CASE .
+
+  ENDMETHOD.
+
+
+  METHOD check_overlapp.
+*___ SR2-3200, User: CURSOR, Date: 04.05.2026___*
+    DATA: ld_date_from TYPE sy-datum,
+          ld_date_to   TYPE sy-datum.
+
+    rd_return = abap_true.
+
+    CHECK gs_comwa-kunnr IS NOT INITIAL.
+    CHECK gs_comwa-matnr IS NOT INITIAL.
+    CHECK gs_comwa-vedat IS NOT INITIAL.
+
+    ld_date_from = COND #( WHEN gs_comwa-vdate IS NOT INITIAL
+                           THEN gs_comwa-vdate
+                           ELSE gs_comwa-odate ).
+    ld_date_to = gs_comwa-vedat.
+
+    CHECK ld_date_from IS NOT INITIAL.
+    CHECK ld_date_from LE ld_date_to.
+
+    SELECT zzlrsam, zzlresn
+      FROM /sopromet/zzlrv
+      WHERE vkorg EQ @gs_comwa-vkorg
+        AND kunnr EQ @gs_comwa-kunnr
+        AND matnr EQ @gs_comwa-matnr
+        AND vdate LE @ld_date_to
+        AND vedat GE @ld_date_from
+      INTO TABLE @DATA(lt_overlapp).
+
+    IF gs_comwa-zzlresn IS NOT INITIAL.
+      DELETE lt_overlapp WHERE zzlresn EQ gs_comwa-zzlresn.
+    ENDIF.
+
+    IF gs_comwa-zzlrsam IS NOT INITIAL.
+      DELETE lt_overlapp WHERE zzlrsam EQ gs_comwa-zzlrsam.
+    ENDIF.
+
+    IF lt_overlapp[] IS NOT INITIAL.
+      rd_return = abap_false.
+      /bitmym/cl_message=>message( id = 'E003(/BITMYM/S4)' ).
+      MESSAGE e003(/bitmym/s4) INTO gd_dummy_message.
+    ENDIF.
 
   ENDMETHOD.
 
