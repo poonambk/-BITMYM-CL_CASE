@@ -1523,6 +1523,9 @@ protected section.
   methods CHECK_BEFORE_SAVE_ITEMS
     returning
       value(RD_RETURN) type ABAP_BOOL .
+  methods CHECK_BEFORE_SAVE_OVERLAP
+    returning
+      value(RD_RETURN) type ABAP_BOOL .
   methods CHECK_CLINICAL_SUPPORT_CHANGE
     returning
       value(RD_RETURN) type ABAP_BOOL .
@@ -20129,6 +20132,9 @@ ENHANCEMENT-POINT CLONE_BOOKING SPOTS /BITMYM/CL_CASE .
     rd_return = check_before_save_dates( ).
     CHECK rd_return EQ abap_true.
 
+    rd_return = check_before_save_overlap( ).
+    CHECK rd_return EQ abap_true.
+
 
     rd_return = check_before_save_booking( ).
     CHECK rd_return EQ abap_true.
@@ -21046,6 +21052,42 @@ ENHANCEMENT-POINT INTF_POST_PROCESSING_INT00 SPOTS /BITMYM/CL_CASE .
 *____SR2-2015____END   INSERT___*
 
 ENHANCEMENT-POINT CUSTOM_VALIDATIONS_RESERVATION SPOTS /BITMYM/CL_CASE .
+
+  ENDMETHOD.
+
+
+  METHOD check_before_save_overlap.
+*___ SR2-3185, User: PKSHIRSAGAR, Date: 04.05.2026___*
+
+    DATA: lt_items TYPE /bitmym/b_items_st_tab,
+          l_sernr  TYPE sernr,
+          l_matnr  TYPE matnr.
+
+    rd_return = abap_true.
+    IF go_rstyp IS INITIAL.
+      go_rstyp = /sopromet/cl_l_res_type=>create( i_vkorg = gs_comwa-vkorg i_rstyp = gs_comwa-rstyp ).
+    ENDIF.
+    go_rstyp->set_data_vkorg( gs_comwa-vkorg ).
+    DATA(ls_rstyp_data) = go_rstyp->get_data( ).
+
+    IF ls_rstyp_data-gs_rstypo-overlap_check EQ abap_true.
+      IF go_act_reservation IS NOT INITIAL.
+        go_act_reservation->get_property( EXPORTING i_feld = 'GT_BOOKING_ITEMS' IMPORTING e_value = lt_items ).
+      ENDIF.
+      CHECK lt_items IS NOT INITIAL.
+
+      SELECT *
+        FROM /bitmym/i_booking AS _header
+       INNER JOIN /bitmym/i_bookng_iitems AS _items
+          ON _items~bookingno = _header~bookingno
+       INNER JOIN @lt_items AS _lt_items
+          ON _items~material = _lt_items-matnr
+       WHERE customer      = @gs_comwa-kunnr
+         AND shiptoparty   = @gs_comwa-kunwe
+         AND deliverydate >= @gs_comwa-abdat
+         AND endofuse     <= @gs_comwa-vedat
+       INTO TABLE @DATA(lt_bitems).
+    ENDIF.
 
   ENDMETHOD.
 
