@@ -1523,7 +1523,7 @@ protected section.
   methods CHECK_BEFORE_SAVE_ITEMS
     returning
       value(RD_RETURN) type ABAP_BOOL .
-  methods CHECK_OVERLAPP
+  methods CHECK_BEFORE_SAVE_OVERLAP
     returning
       value(RD_RETURN) type ABAP_BOOL .
   methods CHECK_CLINICAL_SUPPORT_CHANGE
@@ -20132,7 +20132,7 @@ ENHANCEMENT-POINT CLONE_BOOKING SPOTS /BITMYM/CL_CASE .
     rd_return = check_before_save_dates( ).
     CHECK rd_return EQ abap_true.
 
-    rd_return = check_overlapp( ).
+    rd_return = check_before_save_overlap( ).
     CHECK rd_return EQ abap_true.
 
 
@@ -21056,46 +21056,25 @@ ENHANCEMENT-POINT CUSTOM_VALIDATIONS_RESERVATION SPOTS /BITMYM/CL_CASE .
   ENDMETHOD.
 
 
-  METHOD check_overlapp.
-*___ SR2-3200, User: CURSOR, Date: 04.05.2026___*
-    DATA: ld_date_from TYPE sy-datum,
-          ld_date_to   TYPE sy-datum.
+  METHOD check_before_save_overlap.
+*___ SR2-3185, User: PKSHIRSAGAR, Date: 04.05.2026___*
+
+    DATA: lt_items TYPE /bitmym/b_items_st_tab,
+          l_sernr  TYPE sernr,
+          l_matnr  TYPE matnr.
 
     rd_return = abap_true.
-
-    CHECK gs_comwa-kunnr IS NOT INITIAL.
-    CHECK gs_comwa-matnr IS NOT INITIAL.
-    CHECK gs_comwa-vedat IS NOT INITIAL.
-
-    ld_date_from = COND #( WHEN gs_comwa-vdate IS NOT INITIAL
-                           THEN gs_comwa-vdate
-                           ELSE gs_comwa-odate ).
-    ld_date_to = gs_comwa-vedat.
-
-    CHECK ld_date_from IS NOT INITIAL.
-    CHECK ld_date_from LE ld_date_to.
-
-    SELECT zzlrsam, zzlresn
-      FROM /sopromet/zzlrv
-      WHERE vkorg EQ @gs_comwa-vkorg
-        AND kunnr EQ @gs_comwa-kunnr
-        AND matnr EQ @gs_comwa-matnr
-        AND vdate LE @ld_date_to
-        AND vedat GE @ld_date_from
-      INTO TABLE @DATA(lt_overlapp).
-
-    IF gs_comwa-zzlresn IS NOT INITIAL.
-      DELETE lt_overlapp WHERE zzlresn EQ gs_comwa-zzlresn.
+    IF go_rstyp IS INITIAL.
+      go_rstyp = /sopromet/cl_l_res_type=>create( i_vkorg = gs_comwa-vkorg i_rstyp = gs_comwa-rstyp ).
     ENDIF.
+    go_rstyp->set_data_vkorg( gs_comwa-vkorg ).
+    DATA(ls_rstyp_data) = go_rstyp->get_data( ).
 
-    IF gs_comwa-zzlrsam IS NOT INITIAL.
-      DELETE lt_overlapp WHERE zzlrsam EQ gs_comwa-zzlrsam.
-    ENDIF.
-
-    IF lt_overlapp[] IS NOT INITIAL.
-      rd_return = abap_false.
-      /bitmym/cl_message=>message( id = 'E003(/BITMYM/S4)' ).
-      MESSAGE e003(/bitmym/s4) INTO gd_dummy_message.
+    IF ls_rstyp_data-gs_rstypo-overlap_check EQ abap_true.
+      IF go_act_reservation IS NOT INITIAL.
+        go_act_reservation->get_property( EXPORTING i_feld = 'GT_BOOKING_ITEMS' IMPORTING e_value = lt_items ).
+      ENDIF.
+      CHECK lt_items IS NOT INITIAL.
     ENDIF.
 
   ENDMETHOD.
