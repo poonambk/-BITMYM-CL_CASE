@@ -21076,49 +21076,17 @@ ENHANCEMENT-POINT CUSTOM_VALIDATIONS_RESERVATION SPOTS /BITMYM/CL_CASE .
       ENDIF.
       CHECK lt_items IS NOT INITIAL.
 
-      DATA(ld_date_from) = COND sy-datum( WHEN gs_comwa-vdate IS NOT INITIAL
-                                          THEN gs_comwa-vdate
-                                          ELSE gs_comwa-odate ).
-      DATA(ld_date_to) = gs_comwa-vedat.
-      CHECK ld_date_from IS NOT INITIAL AND ld_date_to IS NOT INITIAL.
-
-      DATA(lt_items_tmp) = lt_items.
-      SORT lt_items_tmp BY matnr sernr.
-
-      LOOP AT lt_items_tmp ASSIGNING FIELD-SYMBOL(<ls_item>) WHERE matnr IS NOT INITIAL.
-        IF l_sernr = <ls_item>-sernr AND l_matnr = <ls_item>-matnr.
-          CONTINUE.
-        ENDIF.
-        l_sernr = <ls_item>-sernr.
-        l_matnr = <ls_item>-matnr.
-
-        "Read candidate bookings from CDS view /BITMYM/I_BOOKING
-        SELECT booking
-          FROM /bitmym/i_booking
-          WHERE booking         NE @gs_comwa-zzlresn
-            AND followupbooking EQ @abap_false
-          INTO TABLE @DATA(lt_booking_candidates).
-        CHECK lt_booking_candidates IS NOT INITIAL.
-
-        SELECT zzlresn
-          FROM /sopromet/zzlrv
-          FOR ALL ENTRIES IN @lt_booking_candidates
-          WHERE zzlresn EQ @lt_booking_candidates-booking
-            AND vkorg  EQ @gs_comwa-vkorg
-            AND kunnr  EQ @gs_comwa-kunnr
-            AND matnr  EQ @l_matnr
-            AND vdate  LE @ld_date_to
-            AND vedat  GE @ld_date_from
-            AND zzlrsam NE @gs_comwa-zzlrsam
-          INTO TABLE @DATA(lt_overlap).
-
-        IF lt_overlap IS NOT INITIAL.
-          rd_return = abap_false.
-          /bitmym/cl_message=>message( id = 'E003(/BITMYM/S4)' ).
-          MESSAGE e003(/bitmym/s4) INTO DATA(ld_msg).
-          EXIT.
-        ENDIF.
-      ENDLOOP.
+      SELECT *
+        FROM /bitmym/i_booking AS _header
+       INNER JOIN /bitmym/i_bookng_iitems AS _items
+          ON _items~bookingno = _header~bookingno
+       INNER JOIN @lt_items AS _lt_items
+          ON _items~material = _lt_items-matnr
+       WHERE customer      = @gs_comwa-kunnr
+         AND shiptoparty   = @gs_comwa-kunwe
+         AND deliverydate >= @gs_comwa-abdat
+         AND endofuse     <= @gs_comwa-vedat
+       INTO TABLE @DATA(lt_bitems).
     ENDIF.
 
   ENDMETHOD.
